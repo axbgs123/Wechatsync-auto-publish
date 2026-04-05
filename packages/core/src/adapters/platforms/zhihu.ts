@@ -213,6 +213,12 @@ export class ZhihuAdapter extends CodeAdapter {
     result = result.replace(/\s*data-(?!draft)[a-z-]+="[^"]*"/gi, '')
     result = result.replace(/\s*style="[^"]*"/gi, '')
 
+    // 5. 去除知乎站内知识图谱链接，仅保留链接文本
+    result = result.replace(
+      /<a[^>]*href="https?:\/\/zhida\.zhihu\.com\/[^"]*"[^>]*>([\s\S]*?)<\/a>/gi,
+      '$1'
+    )
+
     return result
   }
 
