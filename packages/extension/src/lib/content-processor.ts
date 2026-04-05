@@ -77,8 +77,8 @@ export function preprocessForPlatform(rawHtml: string, config: PreprocessConfig)
   // 移除 script 和 noscript（总是执行），style 根据配置决定
   removeElements(container, config.keepStyles ? ['script', 'noscript'] : ['script', 'style', 'noscript'])
 
-  if (config.unwrapInternalLinks?.length) {
-    unwrapInternalLinks(container, config.unwrapInternalLinks)
+  if (config.removeInternalLinks) {
+    removeInternalLinks(container, config.internalLinkDomains)
   }
 
   if (config.removeLinks) {
@@ -242,7 +242,8 @@ function processSvgImages(container: HTMLElement): void {
 /**
  * 去除指定域名的站内链接，仅保留链接文本
  */
-function unwrapInternalLinks(container: HTMLElement, domains: string[]): void {
+function removeInternalLinks(container: HTMLElement, domains?: string[]): void {
+  if (!domains?.length) return
   const links = container.querySelectorAll('a')
 
   links.forEach((link) => {

@@ -70,7 +70,9 @@ export interface PreprocessConfig {
   convertTablesToText?: boolean
 
   /** 去除源平台站内链接（如知乎知识图谱），仅保留链接文本 */
-  unwrapInternalLinks?: string[]
+  removeInternalLinks?: boolean
+  /** 需要去除的站内链接域名 */
+  internalLinkDomains?: string[]
 
   /** 保留 <style> 标签（CLI 同步自定义 HTML 时使用） */
   keepStyles?: boolean
@@ -99,6 +101,8 @@ export const DEFAULT_PREPROCESS_CONFIG: PreprocessConfig = {
   removeDataAttributes: true,
   removeSrcset: true,
   removeSizes: true,
+  removeInternalLinks: true,
+  internalLinkDomains: ['zhida.zhihu.com'],
 }
 
 /**

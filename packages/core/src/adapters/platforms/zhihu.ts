@@ -38,8 +38,6 @@ export class ZhihuAdapter extends CodeAdapter {
     removeEmptyLines: true,
     removeEmptyDivs: true,
     removeNestedEmptyContainers: true,
-    // 去除知乎站内知识图谱链接，仅保留链接文本
-    unwrapInternalLinks: ['zhida.zhihu.com'],
   }
 
   /** 知乎 API 需要的 Header 规则 */
