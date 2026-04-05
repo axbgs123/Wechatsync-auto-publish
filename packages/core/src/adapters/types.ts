@@ -69,6 +69,9 @@ export interface PreprocessConfig {
   /** 将表格转换为文本（用 | 分隔列，适用于不支持表格的平台） */
   convertTablesToText?: boolean
 
+  /** 去除源平台站内链接（如知乎知识图谱），仅保留链接文本 */
+  unwrapInternalLinks?: string[]
+
   /** 保留 <style> 标签（CLI 同步自定义 HTML 时使用） */
   keepStyles?: boolean
 

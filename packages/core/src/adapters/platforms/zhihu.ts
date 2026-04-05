@@ -38,6 +38,8 @@ export class ZhihuAdapter extends CodeAdapter {
     removeEmptyLines: true,
     removeEmptyDivs: true,
     removeNestedEmptyContainers: true,
+    // 去除知乎站内知识图谱链接，仅保留链接文本
+    unwrapInternalLinks: ['zhida.zhihu.com'],
   }
 
   /** 知乎 API 需要的 Header 规则 */
@@ -212,12 +214,6 @@ export class ZhihuAdapter extends CodeAdapter {
     // 4. 移除微信样式属性 (但保留知乎的 data-draft-* 属性)
     result = result.replace(/\s*data-(?!draft)[a-z-]+="[^"]*"/gi, '')
     result = result.replace(/\s*style="[^"]*"/gi, '')
-
-    // 5. 去除知乎站内知识图谱链接，仅保留链接文本
-    result = result.replace(
-      /<a[^>]*href="https?:\/\/zhida\.zhihu\.com\/[^"]*"[^>]*>([\s\S]*?)<\/a>/gi,
-      '$1'
-    )
 
     return result
   }
