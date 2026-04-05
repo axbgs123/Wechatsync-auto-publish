@@ -77,8 +77,8 @@ export function preprocessForPlatform(rawHtml: string, config: PreprocessConfig)
   // 移除 script 和 noscript（总是执行），style 根据配置决定
   removeElements(container, config.keepStyles ? ['script', 'noscript'] : ['script', 'style', 'noscript'])
 
-  if (config.removeInternalLinks) {
-    removeInternalLinks(container, config.internalLinkDomains)
+  if (config.cleanPlatformLinks) {
+    cleanPlatformLinks(container, config.removeLinkDomains, config.redirectLinkDomains)
   }
 
   if (config.removeLinks) {
@@ -240,24 +240,34 @@ function processSvgImages(container: HTMLElement): void {
 }
 
 /**
- * 去除指定域名的站内链接，仅保留链接文本
+ * 清理源平台链接：去除站内链接（保留文本）、还原跳转中转（替换为实际 URL）
  */
-function removeInternalLinks(container: HTMLElement, domains?: string[]): void {
-  if (!domains?.length) return
-  const links = container.querySelectorAll('a')
+function cleanPlatformLinks(container: HTMLElement, removeDomains?: string[], redirectDomains?: string[]): void {
+  const links = Array.from(container.querySelectorAll('a'))
 
-  links.forEach((link) => {
+  for (const link of links) {
     const href = link.getAttribute('href') || ''
-    const isInternal = domains.some(domain => href.includes(domain))
-    if (!isInternal) return
 
-    const parent = link.parentNode
-    if (!parent) return
-    while (link.firstChild) {
-      parent.insertBefore(link.firstChild, link)
+    if (removeDomains?.some(domain => href.includes(domain))) {
+      const parent = link.parentNode
+      if (!parent) continue
+      while (link.firstChild) {
+        parent.insertBefore(link.firstChild, link)
+      }
+      parent.removeChild(link)
+      continue
     }
-    parent.removeChild(link)
-  })
+
+    if (redirectDomains?.some(domain => href.includes(domain))) {
+      try {
+        const url = new URL(href)
+        const target = url.searchParams.get('target')
+        if (target) {
+          link.setAttribute('href', target)
+        }
+      } catch {}
+    }
+  }
 }
 
 /**
