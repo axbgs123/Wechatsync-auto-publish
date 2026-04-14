@@ -9,7 +9,7 @@
  * 5. Service Worker 只做图片上传 + 调用 API
  */
 
-import { htmlToMarkdownNative, type PreprocessConfig } from '@wechatsync/core'
+import { htmlToMarkdownNative, SOURCE_LINK_REMOVE_DOMAINS, SOURCE_LINK_REDIRECT_RULES, type PreprocessConfig } from '@wechatsync/core'
 import { createLogger } from './logger'
 
 const logger = createLogger('ContentProcessor')
@@ -76,6 +76,9 @@ export function preprocessForPlatform(rawHtml: string, config: PreprocessConfig)
 
   // 移除 script 和 noscript（总是执行），style 根据配置决定
   removeElements(container, config.keepStyles ? ['script', 'noscript'] : ['script', 'style', 'noscript'])
+
+  // 清理源平台链接（固定步骤，在 removeLinks 之前执行）
+  cleanSourcePlatformLinks(container)
 
   if (config.removeLinks) {
     processLinks(container, config.keepLinkDomains)
@@ -233,6 +236,34 @@ function processSvgImages(container: HTMLElement): void {
       img.remove()
     }
   })
+}
+
+/**
+ * 清理源平台链接（站内链接去除、跳转中转还原）
+ * 规则定义在 @wechatsync/core SOURCE_LINK_*_DOMAINS，新增平台只需加域名
+ */
+function cleanSourcePlatformLinks(container: HTMLElement): void {
+  const links = Array.from(container.querySelectorAll('a'))
+  for (const link of links) {
+    const href = link.getAttribute('href') || ''
+    if (SOURCE_LINK_REMOVE_DOMAINS.some(d => href.includes(d))) {
+      const parent = link.parentNode
+      if (!parent) continue
+      while (link.firstChild) {
+        parent.insertBefore(link.firstChild, link)
+      }
+      parent.removeChild(link)
+      continue
+    }
+    const rule = SOURCE_LINK_REDIRECT_RULES.find(r => href.includes(r.domain))
+    if (rule) {
+      try {
+        const url = new URL(href)
+        const real = url.searchParams.get(rule.param)
+        if (real) link.setAttribute('href', real)
+      } catch {}
+    }
+  }
 }
 
 /**
