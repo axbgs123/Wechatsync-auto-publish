@@ -14,6 +14,18 @@ import { createLogger } from './logger'
 
 const logger = createLogger('Turndown')
 
+// ============ 源平台链接清理规则 ============
+
+/** 需要去除的站内链接域名（去掉 <a> 只保留文本） */
+export const SOURCE_LINK_REMOVE_DOMAINS = [
+  'zhida.zhihu.com',
+]
+
+/** 跳转中转规则：domain → 真实 URL 所在的 query 参数名 */
+export const SOURCE_LINK_REDIRECT_RULES: Array<{ domain: string; param: string }> = [
+  { domain: 'link.zhihu.com', param: 'target' },
+]
+
 // ============ HTML 实体解码工具 ============
 
 /**
@@ -440,6 +452,31 @@ function addExtensionRules(turndownService: TurndownService): void {
       }
 
       return '\n' + fence + language + '\n' + text + '\n' + fence + '\n'
+    }
+  })
+
+  // 源平台链接清理（站内链接去除、跳转中转还原）
+  turndownService.addRule('sourcePlatformLinks', {
+    filter: function(node) {
+      if (node.nodeName !== 'A') return false
+      const href = (node as Element).getAttribute('href') || ''
+      return SOURCE_LINK_REMOVE_DOMAINS.some(d => href.includes(d))
+        || SOURCE_LINK_REDIRECT_RULES.some(r => href.includes(r.domain))
+    },
+    replacement: function(content, node) {
+      const href = (node as Element).getAttribute('href') || ''
+      if (SOURCE_LINK_REMOVE_DOMAINS.some(d => href.includes(d))) {
+        return content
+      }
+      const rule = SOURCE_LINK_REDIRECT_RULES.find(r => href.includes(r.domain))
+      if (rule) {
+        try {
+          const url = new URL(href)
+          const real = url.searchParams.get(rule.param)
+          if (real) return '[' + content + '](' + real + ')'
+        } catch {}
+      }
+      return '[' + content + '](' + href + ')'
     }
   })
 

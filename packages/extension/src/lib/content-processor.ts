@@ -9,7 +9,7 @@
  * 5. Service Worker 只做图片上传 + 调用 API
  */
 
-import { htmlToMarkdownNative, type PreprocessConfig } from '@wechatsync/core'
+import { htmlToMarkdownNative, SOURCE_LINK_REMOVE_DOMAINS, SOURCE_LINK_REDIRECT_RULES, type PreprocessConfig } from '@wechatsync/core'
 import { createLogger } from './logger'
 
 const logger = createLogger('ContentProcessor')
@@ -77,9 +77,8 @@ export function preprocessForPlatform(rawHtml: string, config: PreprocessConfig)
   // 移除 script 和 noscript（总是执行），style 根据配置决定
   removeElements(container, config.keepStyles ? ['script', 'noscript'] : ['script', 'style', 'noscript'])
 
-  if (config.cleanPlatformLinks) {
-    cleanPlatformLinks(container, config.removeLinkDomains, config.redirectLinkDomains)
-  }
+  // 清理源平台链接（固定步骤，在 removeLinks 之前执行）
+  cleanSourcePlatformLinks(container)
 
   if (config.removeLinks) {
     processLinks(container, config.keepLinkDomains)
@@ -240,15 +239,14 @@ function processSvgImages(container: HTMLElement): void {
 }
 
 /**
- * 清理源平台链接：去除站内链接（保留文本）、还原跳转中转（替换为实际 URL）
+ * 清理源平台链接（站内链接去除、跳转中转还原）
+ * 规则定义在 @wechatsync/core SOURCE_LINK_*_DOMAINS，新增平台只需加域名
  */
-function cleanPlatformLinks(container: HTMLElement, removeDomains?: string[], redirectDomains?: string[]): void {
+function cleanSourcePlatformLinks(container: HTMLElement): void {
   const links = Array.from(container.querySelectorAll('a'))
-
   for (const link of links) {
     const href = link.getAttribute('href') || ''
-
-    if (removeDomains?.some(domain => href.includes(domain))) {
+    if (SOURCE_LINK_REMOVE_DOMAINS.some(d => href.includes(d))) {
       const parent = link.parentNode
       if (!parent) continue
       while (link.firstChild) {
@@ -257,14 +255,12 @@ function cleanPlatformLinks(container: HTMLElement, removeDomains?: string[], re
       parent.removeChild(link)
       continue
     }
-
-    if (redirectDomains?.some(domain => href.includes(domain))) {
+    const rule = SOURCE_LINK_REDIRECT_RULES.find(r => href.includes(r.domain))
+    if (rule) {
       try {
         const url = new URL(href)
-        const target = url.searchParams.get('target')
-        if (target) {
-          link.setAttribute('href', target)
-        }
+        const real = url.searchParams.get(rule.param)
+        if (real) link.setAttribute('href', real)
       } catch {}
     }
   }

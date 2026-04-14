@@ -69,13 +69,6 @@ export interface PreprocessConfig {
   /** 将表格转换为文本（用 | 分隔列，适用于不支持表格的平台） */
   convertTablesToText?: boolean
 
-  /** 清理源平台链接（去除站内链接、还原跳转中转） */
-  cleanPlatformLinks?: boolean
-  /** 需要去除的站内链接域名（仅保留文本） */
-  removeLinkDomains?: string[]
-  /** 需要还原的跳转中转域名（将 href 替换为 target 参数中的实际 URL） */
-  redirectLinkDomains?: string[]
-
   /** 保留 <style> 标签（CLI 同步自定义 HTML 时使用） */
   keepStyles?: boolean
 
@@ -103,9 +96,6 @@ export const DEFAULT_PREPROCESS_CONFIG: PreprocessConfig = {
   removeDataAttributes: true,
   removeSrcset: true,
   removeSizes: true,
-  cleanPlatformLinks: true,
-  removeLinkDomains: ['zhida.zhihu.com'],
-  redirectLinkDomains: ['link.zhihu.com'],
 }
 
 /**
