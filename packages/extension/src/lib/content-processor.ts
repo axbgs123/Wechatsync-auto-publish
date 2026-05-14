@@ -368,7 +368,7 @@ function removeLineNumberSiblings(pre: Element): void {
  * 可作为代码行容器的标签
  * 这些标签通常用于包裹单行代码
  */
-const LINE_CONTAINER_TAGS = new Set(['CODE', 'DIV', 'SPAN', 'P', 'LI'])
+const LINE_CONTAINER_TAGS = new Set(['CODE', 'DIV', 'P', 'LI'])
 
 /**
  * 检查子元素是否构成有效的"多行结构"
