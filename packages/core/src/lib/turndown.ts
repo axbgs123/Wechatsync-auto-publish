@@ -234,14 +234,12 @@ export interface TurndownOptions {
  * - 转义管道符
  * - 换行 → <br>（保留视觉换行；CSDN/标准 markdown 渲染器在表格单元格内支持 <br>）
  * - 合并多余空白
- * - 空内容补足占位（避免某些渲染器折叠列）
  */
 function normalizeCellContent(content: string): string {
   let result = content.replace(/^\s+|\s+$/g, '')
-  result = result.replace(/\|+/g, '\\|')
+  result = result.replace(/\|/g, '\\|')
   result = result.replace(/\s*\r?\n\s*/g, '<br>')
   result = result.replace(/[ \t]{2,}/g, ' ')
-  while (result.length < 3) result += ' '
   return result
 }
 
