@@ -228,19 +228,36 @@ export interface TurndownOptions {
 }
 
 /**
+ * 规范化单元格内容
+ * markdown 表格要求每行单元格在同一行，且 `|` 需转义
+ * - 去首尾空白
+ * - 转义管道符
+ * - 换行 → <br>（保留视觉换行；CSDN/标准 markdown 渲染器在表格单元格内支持 <br>）
+ * - 合并多余空白
+ */
+function normalizeCellContent(content: string): string {
+  let result = content.replace(/^\s+|\s+$/g, '')
+  result = result.replace(/\|/g, '\\|')
+  result = result.replace(/\s*\r?\n\s*/g, '<br>')
+  result = result.replace(/[ \t]{2,}/g, ' ')
+  return result
+}
+
+/**
  * 表格单元格处理
  */
 function cell(content: string, node: Element): string {
+  const normalized = normalizeCellContent(content)
   // 计算元素在兄弟元素中的位置
   // 使用 querySelectorAll 获取所有同级 th/td（更可靠）
   const parent = node.parentNode as Element | null
   if (!parent) {
-    return '| ' + content + ' |'
+    return '| ' + normalized + ' |'
   }
   const siblings = parent.querySelectorAll('th, td')
   const index = Array.from(siblings).indexOf(node)
   const prefix = index === 0 ? '| ' : ' '
-  return prefix + content + ' |'
+  return prefix + normalized + ' |'
 }
 
 /**
