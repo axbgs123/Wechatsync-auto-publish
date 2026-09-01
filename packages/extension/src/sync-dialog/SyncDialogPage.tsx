@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { X } from 'lucide-react'
 import { SyncDialog } from '@/components/sync-dialog'
 import type { Platform, Article, SyncResult, PlatformProgress, DialogStatus } from '@/components/sync-dialog/types'
+import { parseWindowMessage } from '@/lib/window-message'
 
 const SELECTED_PLATFORMS_KEY = 'selectedPlatforms'
 
@@ -30,7 +31,8 @@ export function SyncDialogPage() {
   useEffect(() => {
     const handle = (event: MessageEvent) => {
       try {
-        const data = typeof event.data === 'string' ? JSON.parse(event.data) : event.data
+        const data = parseWindowMessage(event.data)
+        if (!data) return
 
         // Filter by syncId
         if (data.syncId && syncIdRef.current && data.syncId !== syncIdRef.current) return

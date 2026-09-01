@@ -17,7 +17,13 @@ import express, { type Request, type Response } from 'express'
 import fs from 'fs'
 import path from 'path'
 import { ExtensionBridge } from './ws-bridge.js'
-import type { PlatformInfo, SyncResult } from './types.js'
+import type {
+  DraftPublishResult,
+  DraftRecord,
+  DraftRecordStatus,
+  PlatformInfo,
+  SyncArticleResponse,
+} from './types.js'
 
 const WS_PORT = parseInt(process.env.SYNC_WS_PORT || '9527', 10)
 const HTTP_PORT = parseInt(process.env.SYNC_HTTP_PORT || '9528', 10)
@@ -107,6 +113,51 @@ function createServer(): Server {
           },
         },
         {
+          name: 'list_drafts',
+          description: '查询已创建的草稿记录。只读取草稿队列，不执行公开发布。',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              platform: {
+                type: 'string',
+                description: '按平台 ID 过滤（可选）',
+              },
+              status: {
+                type: 'string',
+                enum: ['draft_created', 'ready_to_publish', 'publishing', 'published', 'failed'],
+                description: '按草稿状态过滤（可选）',
+              },
+            },
+          },
+        },
+        {
+          name: 'publish_draft',
+          description: '通过 Chrome 登录态自动公开发布一个已登记草稿。该工具与 sync_article 分离；调用会直接执行平台发布动作。success 表示平台已接受发布操作；status=published 表示已获得公开 URL，status=reviewing 表示已提交并等待平台审核。',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              platform: {
+                type: 'string',
+                description: '草稿所属平台 ID，如 zhihu、weixin、sohu、baijiahao、bilibili、toutiao',
+              },
+              draftId: {
+                type: 'string',
+                description: 'sync_article 或 list_drafts 返回的草稿 ID',
+              },
+              confirmed: {
+                type: 'boolean',
+                const: true,
+                description: '必须显式传 true，表示确认执行公开发布',
+              },
+              retryUnverified: {
+                type: 'boolean',
+                description: '上一次浏览器发布未出现二维码或无可验证结果时，由用户明确确认后重试',
+              },
+            },
+            required: ['platform', 'draftId', 'confirmed'],
+          },
+        },
+        {
           name: 'extract_article',
           description: '从当前浏览器页面提取文章内容',
           inputSchema: {
@@ -172,7 +223,7 @@ function createServer(): Server {
           break
 
         case 'sync_article':
-          result = await bridge.request<SyncResult[]>('syncArticle', {
+          result = await bridge.request<SyncArticleResponse>('syncArticle', {
             platforms: (args as { platforms: string[] }).platforms,
             article: {
               title: (args as { title: string }).title,
@@ -182,6 +233,34 @@ function createServer(): Server {
             },
           })
           break
+
+        case 'list_drafts':
+          result = await bridge.request<DraftRecord[]>('listDrafts', {
+            platform: (args as { platform?: string })?.platform,
+            status: (args as { status?: DraftRecordStatus })?.status,
+          })
+          break
+
+        case 'publish_draft': {
+          const publishArgs = args as {
+            platform?: string
+            draftId?: string
+            confirmed?: boolean
+            retryUnverified?: boolean
+          }
+          if (!publishArgs?.platform) throw new Error('platform is required')
+          if (!publishArgs?.draftId) throw new Error('draftId is required')
+          if (publishArgs.confirmed !== true) {
+            throw new Error('公开发布必须显式设置 confirmed=true')
+          }
+          result = await bridge.request<DraftPublishResult>('publishDraft', {
+            platform: publishArgs.platform,
+            draftId: publishArgs.draftId,
+            confirmed: true,
+            retryUnverified: publishArgs.retryUnverified === true,
+          })
+          break
+        }
 
         case 'extract_article':
           result = await bridge.request('extractArticle')

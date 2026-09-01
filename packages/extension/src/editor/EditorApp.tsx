@@ -4,6 +4,7 @@ import { cn } from '@/lib/utils'
 import { SyncDialog } from '@/components/sync-dialog'
 import type { Platform, SyncResult, PlatformProgress } from '@/components/sync-dialog/types'
 import { createLogger } from '../lib/logger'
+import { parseWindowMessage } from '../lib/window-message'
 
 const logger = createLogger('Editor')
 
@@ -49,7 +50,8 @@ export function EditorApp() {
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
       try {
-        const data = typeof event.data === 'string' ? JSON.parse(event.data) : event.data
+        const data = parseWindowMessage(event.data)
+        if (!data) return
 
         if (data.syncId) {
           if (!currentSyncIdRef.current) {

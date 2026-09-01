@@ -3,7 +3,8 @@ import { X, Star, Share2 } from 'lucide-react'
 
 const STORAGE_KEY = 'share_prompt_dismissed'
 const CHROME_STORE_URL = 'https://chromewebstore.google.com/detail/%E6%96%87%E7%AB%A0%E5%90%8C%E6%AD%A5%E5%8A%A9%E6%89%8B/hchobocdmclopcbnibdnoafilagadion/reviews'
-const SHARE_TEXT = '推荐一个开源免费的多平台文章同步工具，一键同步到知乎、掘金、头条、小红书等29+平台 https://www.wechatsync.com'
+const ORIGINAL_SHARE_TEXT = '推荐一个开源免费的多平台文章同步工具，一键同步到知乎、掘金、头条、小红书等29+平台 https://www.wechatsync.com'
+const INTEGRATED_SHARE_TEXT = '推荐文章同步助手2.0.9 自动发布集成版，在多平台同步草稿的基础上增加独立发布能力 https://wpics.oss-cn-shanghai.aliyuncs.com/wechatsync-2.0.9.zip?date=20260324'
 
 // 显示分享提示的里程碑次数
 const MILESTONES = [5, 20, 50]
@@ -16,7 +17,7 @@ const RECURRING_INTERVAL = 100 // 50次之后每100次提示一次
  */
 export function SharePrompt() {
   const [visible, setVisible] = useState(false)
-  const [copied, setCopied] = useState(false)
+  const [copiedVersion, setCopiedVersion] = useState<'original' | 'integrated' | null>(null)
 
   useEffect(() => {
     checkShouldShow().then(setVisible).catch(() => {})
@@ -31,18 +32,18 @@ export function SharePrompt() {
     await chrome.storage.local.set({ [STORAGE_KEY]: storage.total_syncs || 0 })
   }
 
-  const handleShare = () => {
+  const handleShare = (version: 'original' | 'integrated') => {
     // Use textarea fallback for clipboard (works in extension popup)
     const textarea = document.createElement('textarea')
-    textarea.value = SHARE_TEXT
+    textarea.value = version === 'original' ? ORIGINAL_SHARE_TEXT : INTEGRATED_SHARE_TEXT
     textarea.style.position = 'fixed'
     textarea.style.opacity = '0'
     document.body.appendChild(textarea)
     textarea.select()
     document.execCommand('copy')
     document.body.removeChild(textarea)
-    setCopied(true)
-    setTimeout(() => setCopied(false), 2000)
+    setCopiedVersion(version)
+    setTimeout(() => setCopiedVersion(null), 2000)
   }
 
   return (
@@ -56,23 +57,32 @@ export function SharePrompt() {
       <p className="text-xs font-medium text-violet-800 dark:text-violet-300 mb-2 pr-4">
         觉得好用吗？你的支持是最大的动力
       </p>
-      <div className="flex gap-2">
+      <div className="space-y-2">
         <a
           href={CHROME_STORE_URL}
           target="_blank"
           rel="noopener noreferrer"
-          className="flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-md text-xs font-medium bg-violet-100 dark:bg-violet-900/50 text-violet-700 dark:text-violet-300 hover:bg-violet-200 dark:hover:bg-violet-900 transition-colors"
+          className="flex items-center justify-center gap-1.5 py-1.5 rounded-md text-xs font-medium bg-violet-100 dark:bg-violet-900/50 text-violet-700 dark:text-violet-300 hover:bg-violet-200 dark:hover:bg-violet-900 transition-colors"
         >
           <Star className="w-3 h-3" />
-          去好评
+          去好评 · 原版
         </a>
-        <button
-          onClick={handleShare}
-          className="flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-md text-xs font-medium bg-violet-100 dark:bg-violet-900/50 text-violet-700 dark:text-violet-300 hover:bg-violet-200 dark:hover:bg-violet-900 transition-colors"
-        >
-          <Share2 className="w-3 h-3" />
-          {copied ? '已复制' : '分享给朋友'}
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={() => handleShare('original')}
+            className="flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-md text-xs font-medium bg-violet-100 dark:bg-violet-900/50 text-violet-700 dark:text-violet-300 hover:bg-violet-200 dark:hover:bg-violet-900 transition-colors"
+          >
+            <Share2 className="w-3 h-3" />
+            {copiedVersion === 'original' ? '已复制' : '分享原版'}
+          </button>
+          <button
+            onClick={() => handleShare('integrated')}
+            className="flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-md text-xs font-medium bg-violet-100 dark:bg-violet-900/50 text-violet-700 dark:text-violet-300 hover:bg-violet-200 dark:hover:bg-violet-900 transition-colors"
+          >
+            <Share2 className="w-3 h-3" />
+            {copiedVersion === 'integrated' ? '已复制' : '分享集成发布版'}
+          </button>
+        </div>
       </div>
     </div>
   )

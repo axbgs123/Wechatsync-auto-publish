@@ -85,6 +85,10 @@ export interface RuntimeInterface {
      */
     create(url: string, active?: boolean): Promise<{ id: number }>
     /**
+     * 关闭 tab（运行时支持时用于清理临时验证页）
+     */
+    remove?(tabId: number): Promise<void>
+    /**
      * 等待 tab 加载完成
      */
     waitForLoad(tabId: number, timeout?: number): Promise<void>

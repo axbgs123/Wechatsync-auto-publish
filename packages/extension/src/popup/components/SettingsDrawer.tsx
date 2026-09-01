@@ -13,6 +13,7 @@ interface McpStatus {
   connected: boolean
   token?: string
   serverUrl?: string
+  lastConnectedAt?: number
 }
 
 interface CMSAccount {
@@ -42,6 +43,7 @@ export function SettingsDrawer({ open, onClose }: SettingsDrawerProps) {
           connected: response.connected ?? false,
           token: response.token,
           serverUrl: response.serverUrl,
+          lastConnectedAt: response.lastConnectedAt,
         })
         setServerUrlInput(response.serverUrl || '')
       }
@@ -68,7 +70,11 @@ export function SettingsDrawer({ open, onClose }: SettingsDrawerProps) {
     const interval = setInterval(() => {
       chrome.runtime.sendMessage({ type: 'MCP_STATUS' }, (response) => {
         if (response && !response.error) {
-          setMcpStatus(prev => ({ ...prev, connected: response.connected ?? false }))
+          setMcpStatus(prev => ({
+            ...prev,
+            connected: response.connected ?? false,
+            lastConnectedAt: response.lastConnectedAt ?? prev.lastConnectedAt,
+          }))
         }
       })
     }, 3000)
@@ -100,6 +106,13 @@ export function SettingsDrawer({ open, onClose }: SettingsDrawerProps) {
           token: response.token,  // 保存返回的 token
         }))
       }
+    })
+  }
+
+  const reconnectMcp = () => {
+    setLoading(true)
+    chrome.runtime.sendMessage({ type: 'MCP_RECONNECT' }, () => {
+      setLoading(false)
     })
   }
 
@@ -211,6 +224,23 @@ export function SettingsDrawer({ open, onClose }: SettingsDrawerProps) {
                 <p className="text-xs text-muted-foreground">
                   供 CLI 和 MCP Server 通过 WebSocket 桥接同步文章
                 </p>
+                {!mcpStatus.connected && (
+                  <div className="space-y-1.5">
+                    {Boolean(mcpStatus.lastConnectedAt) && (
+                      <p className="text-[11px] text-muted-foreground">
+                        上次连接：{new Date(mcpStatus.lastConnectedAt!).toLocaleString()}
+                      </p>
+                    )}
+                    <button
+                      type="button"
+                      onClick={reconnectMcp}
+                      disabled={loading}
+                      className="w-full rounded border border-border bg-background px-3 py-1.5 text-xs hover:bg-muted disabled:opacity-50"
+                    >
+                      立即重新连接
+                    </button>
+                  </div>
+                )}
                 {mcpStatus.token && (
                   <div className="p-2 bg-muted/50 rounded text-xs">
                     <p className="text-muted-foreground mb-1">Token:</p>

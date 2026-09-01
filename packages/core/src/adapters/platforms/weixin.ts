@@ -18,6 +18,18 @@ interface WeixinMeta {
   avatar: string
 }
 
+interface WeixinCoverVariant {
+  url: string
+  fileId: string
+}
+
+interface WeixinCoverSet {
+  originalUrl: string
+  wide: WeixinCoverVariant
+  square: WeixinCoverVariant
+  cropList: string
+}
+
 // 微信公众号的默认 CSS 样式
 const WEIXIN_CSS = `
 p {
@@ -50,7 +62,7 @@ export class WeixinAdapter extends CodeAdapter {
     name: '微信公众号',
     icon: 'https://mp.weixin.qq.com/favicon.ico',
     homepage: 'https://mp.weixin.qq.com',
-    capabilities: ['article', 'draft', 'image_upload'],
+    capabilities: ['article', 'draft', 'image_upload', 'browser_publish'],
   }
 
   /** 预处理配置: 微信公众号使用 HTML 格式，移除非微信域名链接，压缩标签间空白避免 ProseMirror 产生空节点 */
@@ -143,6 +155,13 @@ export class WeixinAdapter extends CodeAdapter {
         }
       }
 
+      const coverSource = article.cover?.trim()
+      if (!coverSource) {
+        throw new Error('微信公众号草稿必须提供封面图')
+      }
+      const uploadedCover = await this.uploadImageByUrl(coverSource)
+      const cover = await this.cropCover(uploadedCover)
+
       // 微信到微信：使用原始 HTML，跳过所有处理
       let content = (article.source?.platform === 'weixin' && (article as any).rawHtml)
         ? (article as any).rawHtml
@@ -189,11 +208,13 @@ export class WeixinAdapter extends CodeAdapter {
         sourceurl0: '',
         need_open_comment0: '1',
         only_fans_can_comment0: '0',
-        cdn_url0: '',
-        cdn_235_1_url0: '',
-        cdn_1_1_url0: '',
-        cdn_url_back0: '',
-        crop_list0: '',
+        cdn_url0: cover.wide.url,
+        cdn_235_1_url0: cover.wide.url,
+        cdn_16_9_url0: '',
+        cdn_3_4_url0: cover.wide.url,
+        cdn_1_1_url0: cover.square.url,
+        cdn_url_back0: cover.originalUrl,
+        crop_list0: cover.cropList,
         music_id0: '',
         video_id0: '',
         voteid0: '',
@@ -311,12 +332,76 @@ export class WeixinAdapter extends CodeAdapter {
     logger.debug(' Image upload response:', res)
 
     if (res.base_resp?.err_msg !== 'ok' || !res.cdn_url) {
-      throw new Error('图片上传失败: ' + src)
+      const detail = res.base_resp?.err_msg
+      throw new Error(`图片上传失败${detail ? `：${detail}` : ''}`)
     }
 
     return {
       url: res.cdn_url,
+      attrs: res.content ? { fileId: res.content } : undefined,
     }
+  }
+
+  private async cropCover(image: ImageUploadResult): Promise<WeixinCoverSet> {
+    if (!this.weixinMeta) throw new Error('未登录')
+
+    const body = new URLSearchParams({
+      imgurl: image.url,
+      size_count: '2',
+      size0_x1: '0',
+      size0_y1: '0',
+      size0_x2: '1',
+      size0_y2: '1',
+      format0: '2.35_1',
+      size1_x1: '0',
+      size1_y1: '0',
+      size1_x2: '1',
+      size1_y2: '1',
+      format1: '1_1',
+      token: this.weixinMeta.token,
+      lang: 'zh_CN',
+      f: 'json',
+      ajax: '1',
+    })
+
+    const response = await this.runtime.fetch(
+      'https://mp.weixin.qq.com/cgi-bin/cropimage?action=crop_multi',
+      {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
+          'X-Requested-With': 'XMLHttpRequest',
+        },
+        body,
+      }
+    )
+    const res = await response.json() as {
+      base_resp?: { ret?: number; err_msg?: string }
+      result?: Array<{ cdnurl?: string; file_id?: number | string }>
+    }
+    const variants = res.result || []
+    if ((res.base_resp?.ret ?? -1) !== 0 || variants.length < 2
+      || !variants[0]?.cdnurl || variants[0]?.file_id == null
+      || !variants[1]?.cdnurl || variants[1]?.file_id == null) {
+      const detail = res.base_resp?.err_msg
+      throw new Error(`微信公众号封面裁剪失败${detail ? `：${detail}` : ''}`)
+    }
+
+    const wide = { url: variants[0].cdnurl, fileId: String(variants[0].file_id) }
+    const square = { url: variants[1].cdnurl, fileId: String(variants[1].file_id) }
+    const cropList = JSON.stringify({
+      crop_list: [
+        { ratio: '2.35_1', x1: 0, y1: 0, x2: 0, y2: 0, file_id: wide.fileId },
+        { ratio: '1_1', x1: 0, y1: 0, x2: 0, y2: 0, file_id: square.fileId },
+      ],
+      crop_list_percent: [
+        { ratio: '2.35_1', x1: 0, y1: 0, x2: 1, y2: 1, file_id: wide.fileId },
+        { ratio: '1_1', x1: 0, y1: 0, x2: 1, y2: 1, file_id: square.fileId },
+      ],
+    })
+
+    return { originalUrl: image.url, wide, square, cropList }
   }
 
   private isLatexFormula(text: string): boolean {
@@ -373,7 +458,7 @@ export class WeixinAdapter extends CodeAdapter {
     )
   }
 
-  private formatError(res: { ret?: number; base_resp?: { ret: number } }): string {
+  private formatError(res: { ret?: number; base_resp?: { ret: number; err_msg?: string } }): string {
     const ret = res.ret ?? res.base_resp?.ret
 
     const errorMap: Record<number, string> = {
@@ -404,6 +489,8 @@ export class WeixinAdapter extends CodeAdapter {
       [220002]: '图片库已达到存储上限',
     }
 
-    return errorMap[ret as number] || `同步失败 (错误码: ${ret})`
+    const message = errorMap[ret as number] || `同步失败 (错误码: ${ret ?? '未知'})`
+    const detail = res.base_resp?.err_msg?.trim()
+    return detail && detail !== 'ok' ? `${message}：${detail}` : message
   }
 }

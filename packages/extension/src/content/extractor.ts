@@ -17,6 +17,7 @@ import { htmlToMarkdownNative, type PreprocessConfig } from '@wechatsync/core'
 import { createLogger } from '../lib/logger'
 import { preprocessContentDOM, preprocessForPlatform, backupAndSimplifyCodeBlocks, restoreCodeBlocks, type PreprocessResult } from '../lib/content-processor'
 import { createSyncFab } from '../lib/fab'
+import { parseWindowMessage } from '../lib/window-message'
 
 const logger = createLogger('Extractor')
 
@@ -1017,14 +1018,10 @@ function openEditor(article: ExtractedArticle, platforms: any[], selectedPlatfor
 
   // 等待 iframe 准备好后发送数据
   const handleEditorReady = (event: MessageEvent) => {
-    try {
-      const data = typeof event.data === 'string' ? JSON.parse(event.data) : event.data
-      if (data.type === 'EDITOR_READY') {
-        sendDataToEditor(article, platforms, selectedPlatformIds)
-        window.removeEventListener('message', handleEditorReady)
-      }
-    } catch (e) {
-      // ignore
+    const data = parseWindowMessage(event.data)
+    if (data?.type === 'EDITOR_READY') {
+      sendDataToEditor(article, platforms, selectedPlatformIds)
+      window.removeEventListener('message', handleEditorReady)
     }
   }
   window.addEventListener('message', handleEditorReady)
@@ -1107,7 +1104,8 @@ function preprocessForMultiplePlatformsLocal(
  */
 window.addEventListener('message', async (event) => {
   try {
-    const data = typeof event.data === 'string' ? JSON.parse(event.data) : event.data
+    const data = parseWindowMessage(event.data)
+    if (!data) return
 
     if (data.type === 'CLOSE_EDITOR') {
       closeEditor()

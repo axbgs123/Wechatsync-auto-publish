@@ -18,7 +18,7 @@ export class ZhihuAdapter extends CodeAdapter {
     name: '知乎',
     icon: 'https://static.zhihu.com/static/favicon.ico',
     homepage: 'https://www.zhihu.com',
-    capabilities: ['article', 'draft', 'image_upload', 'tags', 'cover'],
+    capabilities: ['article', 'draft', 'image_upload', 'tags', 'cover', 'browser_publish'],
   }
 
   /** 预处理配置: 知乎使用 HTML，需要特殊处理 */

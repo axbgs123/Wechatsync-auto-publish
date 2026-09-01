@@ -1,5 +1,16 @@
 # 文章同步助手 (Wechatsync)
 
+> [!IMPORTANT]
+> 本仓库是基于 [wechatsync/Wechatsync](https://github.com/wechatsync/Wechatsync)
+> 修改的独立版本，基线提交为
+> [`a98e428`](https://github.com/wechatsync/Wechatsync/commit/a98e42865387285afcc027c61836488748f3b30f)。
+> `axbgs123` 于 2026-09-01 对项目进行了修改，增加了独立草稿发布、自动发布集成、
+> 发布状态核验与相关界面调整。本修改版由 `axbgs123` 独立维护，不代表原项目作者
+> 对本版本提供认可、维护或担保。
+>
+> 原项目及本修改版均依据 [GNU General Public License v3.0](LICENSE) 发布。
+> 使用、修改和再分发时须继续遵守 GPL-3.0，并保留原作者及许可证声明。
+
 ![](https://img.shields.io/github/v/release/wechatsync/Wechatsync.svg)
 ![](https://img.shields.io/github/last-commit/wechatsync/Wechatsync)
 ![](https://img.shields.io/github/issues/wechatsync/Wechatsync)

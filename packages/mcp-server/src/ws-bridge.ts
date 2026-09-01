@@ -24,6 +24,8 @@ export class ExtensionBridge {
   }>()
   private requestTimeout = 360000 // 6 minutes (图片多时需要更长时间)
   private connectionResolvers: Array<() => void> = []
+  private heartbeatTimer: NodeJS.Timeout | null = null
+  private readonly heartbeatInterval = 20000
 
   // 安全验证 token（从环境变量读取，优先使用 WECHATSYNC_TOKEN）
   private token: string = process.env.WECHATSYNC_TOKEN || process.env.MCP_TOKEN || ''
@@ -79,6 +81,7 @@ export class ExtensionBridge {
         this.wss.on('connection', (ws: any) => {
           if (!this.silent) console.error('[Bridge] Extension connected')
           this.client = ws
+          this.startHeartbeat(ws)
 
           // 通知等待连接的 Promise
           for (const resolver of this.connectionResolvers) {
@@ -92,7 +95,10 @@ export class ExtensionBridge {
 
           ws.on('close', () => {
             if (!this.silent) console.error('[Bridge] Extension disconnected')
-            this.client = null
+            if (this.client === ws) {
+              this.client = null
+              this.stopHeartbeat()
+            }
           })
 
           ws.on('error', (error: Error) => {
@@ -170,6 +176,7 @@ export class ExtensionBridge {
    * 停止服务器
    */
   stop(): void {
+    this.stopHeartbeat()
     if (this.wss) {
       this.wss.close()
       this.wss = null
@@ -178,6 +185,27 @@ export class ExtensionBridge {
       this.httpServer.close()
       this.httpServer = null
     }
+  }
+
+  /**
+   * Manifest V3 会挂起长期无消息的扩展后台。发送轻量应用层心跳，
+   * 让 WebSocket 保持活跃，同时不占用正常请求队列。
+   */
+  private startHeartbeat(ws: any): void {
+    this.stopHeartbeat()
+    this.heartbeatTimer = setInterval(() => {
+      if (this.client !== ws || ws.readyState !== WS_OPEN) return
+      ws.send(JSON.stringify({
+        id: `__heartbeat_${Date.now()}`,
+        method: '__heartbeat',
+      }))
+    }, this.heartbeatInterval)
+  }
+
+  private stopHeartbeat(): void {
+    if (!this.heartbeatTimer) return
+    clearInterval(this.heartbeatTimer)
+    this.heartbeatTimer = null
   }
 
   /**

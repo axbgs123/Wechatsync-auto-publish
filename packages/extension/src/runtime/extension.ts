@@ -26,7 +26,7 @@ export class ExtensionRuntime implements RuntimeInterface {
     try {
       const response = await fetch(url, {
         ...options,
-        credentials: 'include',
+        credentials: options?.credentials ?? 'include',
         signal: controller.signal,
       })
       return response
@@ -208,6 +208,10 @@ export class ExtensionRuntime implements RuntimeInterface {
     async create(url: string, active = false): Promise<{ id: number }> {
       const tab = await chrome.tabs.create({ url, active })
       return { id: tab.id! }
+    },
+
+    async remove(tabId: number): Promise<void> {
+      await chrome.tabs.remove(tabId)
     },
 
     async waitForLoad(tabId: number, timeout = 30000): Promise<void> {

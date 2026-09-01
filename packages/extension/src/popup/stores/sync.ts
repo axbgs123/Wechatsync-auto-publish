@@ -10,6 +10,7 @@ import {
 } from '../../lib/analytics'
 import { checkSyncFrequency } from '../../lib/rate-limit'
 import { createLogger } from '../../lib/logger'
+import { isExtractableTabUrl } from '../../lib/tab-url'
 
 const logger = createLogger('SyncStore')
 
@@ -313,6 +314,10 @@ export const useSyncStore = create<SyncState>((set, get) => ({
       const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
       logger.debug('loadArticle - current tab:', tab?.url)
       if (!tab?.id) return
+      if (!isExtractableTabUrl(tab.url)) {
+        logger.debug('loadArticle - skipped non-web tab:', tab.url)
+        return
+      }
 
       const response = await chrome.tabs.sendMessage(tab.id, { type: 'EXTRACT_ARTICLE' })
       logger.debug('loadArticle - response:', response)
@@ -322,7 +327,12 @@ export const useSyncStore = create<SyncState>((set, get) => ({
         trackArticleProfile(response.article, 'popup')
       }
     } catch (error) {
-      logger.error('Failed to extract article:', error)
+      const message = (error as Error).message || String(error)
+      if (message.includes('Receiving end does not exist')) {
+        logger.debug('Article extractor is not available in the current tab; reload the page if extraction is needed')
+      } else {
+        logger.error('Failed to extract article:', error)
+      }
     }
   },
 

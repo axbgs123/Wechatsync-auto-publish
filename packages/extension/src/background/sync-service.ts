@@ -13,19 +13,18 @@ import {
 import * as wordpressAdapter from '../adapters/cms/wordpress'
 import * as metaweblogAdapter from '../adapters/cms/metaweblog'
 import { createLogger } from '../lib/logger'
+import type { DraftSyncResult, SyncArticleResponse, SyncResult as AdapterSyncResult } from '@wechatsync/core'
+import { normalizeDraftResult } from './draft-result'
+import {
+  createContentHash,
+  findReusableDraftRecords,
+  registerSyncDrafts,
+} from './draft-registry'
 
 const logger = createLogger('SyncService')
 
-// 同步结果类型
-export interface SyncResult {
-  platform: string
-  platformName?: string
-  success: boolean
-  postUrl?: string
-  draftOnly?: boolean
-  message?: string
-  error?: string
-}
+// syncArticle 对外只暴露稳定的草稿结果协议
+export type SyncResult = DraftSyncResult
 
 // 同步状态类型
 type SyncHistoryStatus = 'syncing' | 'completed' | 'failed' | 'cancelled'
@@ -232,7 +231,7 @@ export async function performSync(
   platforms: string[],
   options: SyncOptions = {},
   callbacks: SyncProgressCallbacks = {}
-): Promise<{ results: SyncResult[]; syncId: string }> {
+): Promise<SyncArticleResponse> {
   const { skipHistory = false, source = 'mcp' } = options
   const { onResult, onImageProgress, onDetailProgress } = callbacks
 
@@ -254,9 +253,27 @@ export async function performSync(
   const cmsAccounts = cmsStorage.cmsAccounts || []
   const cmsAccountIds = new Set(cmsAccounts.map((a: any) => a.id))
 
-  // 分离 DSL 平台和 CMS 账户
-  const dslPlatformIds = platforms.filter((id: string) => !cmsAccountIds.has(id))
-  const cmsPlatformIds = platforms.filter((id: string) => cmsAccountIds.has(id))
+  // 相同内容再次同步时，先复用尚未发布的草稿。
+  const contentHash = await createContentHash(normalizedArticle)
+  const reusableRecords = await findReusableDraftRecords(platforms, contentHash)
+  const reusablePlatforms = new Set(reusableRecords.map(record => record.platform))
+  const reusedResults: SyncResult[] = reusableRecords.map(record => ({
+    platform: record.platform,
+    platformName: record.platformName,
+    draftName: record.draftName,
+    postId: record.draftId,
+    postUrl: record.draftUrl,
+    draftOnly: true,
+    success: true,
+    error: null,
+    timestamp: Date.now(),
+    message: '复用已有未发布草稿',
+  }))
+  const platformsToCreate = platforms.filter(platform => !reusablePlatforms.has(platform))
+
+  // 分离仍需创建草稿的 DSL 平台和 CMS 账户
+  const dslPlatformIds = platformsToCreate.filter((id: string) => !cmsAccountIds.has(id))
+  const cmsPlatformIds = platformsToCreate.filter((id: string) => cmsAccountIds.has(id))
 
   // 初始化同步状态
   const syncState: ActiveSyncState = {
@@ -270,7 +287,7 @@ export async function performSync(
       markdown: normalizedArticle.markdown,
     },
     selectedPlatforms: platforms,
-    results: [],
+    results: [...reusedResults],
     startTime: Date.now(),
   }
   await saveSyncState(syncState)
@@ -278,6 +295,15 @@ export async function performSync(
   // 创建历史记录
   if (!skipHistory) {
     await createHistoryItem(syncId, normalizedArticle, platforms)
+  }
+
+  for (const result of reusedResults) {
+    onResult?.(result)
+    onDetailProgress?.({
+      platform: result.platform,
+      platformName: result.platformName,
+      stage: 'completed',
+    })
   }
 
   // 预处理内容（与 SYNC_ARTICLE 路径一致）
@@ -306,16 +332,16 @@ export async function performSync(
     }
   }
 
-  const allResults: SyncResult[] = []
+  const allResults: SyncResult[] = [...reusedResults]
 
   // 同步到 DSL 平台
   if (dslPlatformIds.length > 0) {
     await syncToMultiplePlatforms(dslPlatformIds, processedArticle, {
       onResult: (result) => {
-        const resultWithName: SyncResult = {
-          ...result,
+        const resultWithName = normalizeDraftResult(result, {
+          articleTitle: normalizedArticle.title,
           platformName: platformNameById.get(result.platform) || result.platform,
-        }
+        })
         syncState.results.push(resultWithName)
         allResults.push(resultWithName)
         saveSyncState(syncState).catch(() => {})
@@ -335,17 +361,24 @@ export async function performSync(
   for (const accountId of cmsPlatformIds) {
     const account = cmsAccounts.find((a: any) => a.id === accountId)
     if (!account) {
-      const cmsResult: SyncResult = {
+      const cmsResult = normalizeDraftResult({
         platform: accountId,
-        platformName: platformNameById.get(accountId) || accountId,
         success: false,
         error: 'CMS 账户不存在',
-      }
+      }, {
+        articleTitle: normalizedArticle.title,
+        platformName: platformNameById.get(accountId) || accountId,
+      })
       allResults.push(cmsResult)
       syncState.results.push(cmsResult)
       saveSyncState(syncState).catch(() => {})
       onResult?.(cmsResult)
-      onDetailProgress?.({ platform: accountId, platformName: cmsResult.platformName || accountId, stage: 'failed', error: cmsResult.error })
+      onDetailProgress?.({
+        platform: accountId,
+        platformName: cmsResult.platformName || accountId,
+        stage: 'failed',
+        error: cmsResult.error ?? undefined,
+      })
       continue
     }
 
@@ -356,12 +389,14 @@ export async function performSync(
       const password = passwordStorage[`cms_pwd_${accountId}`]
 
       if (!password) {
-        const cmsResult: SyncResult = {
+        const cmsResult = normalizeDraftResult({
           platform: accountId,
-          platformName: account.name,
           success: false,
           error: '密码未找到',
-        }
+        }, {
+          articleTitle: normalizedArticle.title,
+          platformName: account.name,
+        })
         allResults.push(cmsResult)
         syncState.results.push(cmsResult)
         saveSyncState(syncState).catch(() => {})
@@ -389,15 +424,21 @@ export async function performSync(
           result = { success: false, error: '不支持的 CMS 类型' }
       }
 
-      const cmsResult: SyncResult = {
-        platform: accountId,
-        platformName: account.name,
+      const adapterResult: Omit<AdapterSyncResult, 'platform' | 'timestamp'> & { timestamp?: number } = {
         success: result.success,
+        postId: result.postId,
         postUrl: result.postUrl,
         draftOnly: true,
         message: result.message,
         error: result.error,
       }
+      const cmsResult = normalizeDraftResult({
+        platform: accountId,
+        ...adapterResult,
+      }, {
+        articleTitle: normalizedArticle.title,
+        platformName: account.name,
+      })
       allResults.push(cmsResult)
       syncState.results.push(cmsResult)
       saveSyncState(syncState).catch(() => {})
@@ -406,15 +447,17 @@ export async function performSync(
         platform: accountId,
         platformName: account.name,
         stage: result.success ? 'completed' : 'failed',
-        error: result.error,
+        error: cmsResult.error ?? undefined,
       })
     } catch (error) {
-      const cmsResult: SyncResult = {
+      const cmsResult = normalizeDraftResult({
         platform: accountId,
-        platformName: account.name,
         success: false,
         error: (error as Error).message,
-      }
+      }, {
+        articleTitle: normalizedArticle.title,
+        platformName: account.name,
+      })
       allResults.push(cmsResult)
       syncState.results.push(cmsResult)
       saveSyncState(syncState).catch(() => {})
@@ -440,6 +483,20 @@ export async function performSync(
   // 更新历史记录
   if (!skipHistory) {
     await updateHistoryItem(syncId, finalStatus, allResults, allPlatformMetas)
+  }
+
+  // 仅登记已经成功创建且有平台草稿 ID 的结果，不触发任何公开发布动作
+  try {
+    const newlyCreatedResults = allResults.filter(result => !reusablePlatforms.has(result.platform))
+    const registration = await registerSyncDrafts(syncId, normalizedArticle, newlyCreatedResults)
+    logger.info(
+      'Draft records registered:', registration.created,
+      'updated:', registration.updated,
+      'skipped:', registration.skipped,
+    )
+  } catch (error) {
+    // 草稿已经在目标平台创建，登记失败不能伪装成平台同步失败
+    logger.error('Failed to register draft records:', error)
   }
 
   return { results: allResults, syncId }
@@ -547,4 +604,3 @@ async function preprocessViaTemporaryTab(
     }
   }
 }
-

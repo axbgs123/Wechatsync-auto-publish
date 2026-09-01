@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Settings, Plus, Clock, X, Download, Info } from 'lucide-react'
+import { Settings, Plus, Clock, X, Download, Info, Send } from 'lucide-react'
 import { useSyncStore } from '../stores/sync'
 import { SettingsDrawer } from '../components/SettingsDrawer'
 import { SyncDialog } from '@/components/sync-dialog'
@@ -124,7 +124,7 @@ export function HomeNew() {
       <header className="flex-shrink-0 flex items-center justify-between px-4 py-2.5 border-b">
         <div className="flex items-center gap-2">
           <img src="/assets/icon-48.png" alt="Logo" className="w-6 h-6" />
-          <h1 className="font-semibold">文章同步助手</h1>
+          <h1 className="font-semibold">文章同步助手2.0.9 自动发布集成版</h1>
         </div>
         <nav className="flex items-center gap-0.5">
           <button
@@ -140,6 +140,13 @@ export function HomeNew() {
           >
             <Clock className="w-3.5 h-3.5" />
             <span className="text-[10px] text-muted-foreground leading-none">历史</span>
+          </button>
+          <button
+            onClick={() => navigate('/publisher')}
+            className="flex flex-col items-center gap-0.5 px-2 py-1 rounded-lg hover:bg-muted transition-colors"
+          >
+            <Send className="w-3.5 h-3.5" />
+            <span className="text-[10px] text-muted-foreground leading-none">发布器</span>
           </button>
           <button
             onClick={() => navigate('/about')}

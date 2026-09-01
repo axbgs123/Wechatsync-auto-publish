@@ -21,7 +21,7 @@ export function AboutPage() {
       <div className="flex-1 flex flex-col items-center justify-center px-6 pb-8">
         {/* Logo & Title */}
         <img src="/assets/icon-128.png" alt="Logo" className="w-16 h-16 mb-3" />
-        <h2 className="text-lg font-semibold">文章同步助手</h2>
+        <h2 className="text-lg font-semibold">文章同步助手2.0.9 自动发布集成版</h2>
         <p className="text-sm text-muted-foreground mt-1">v{version}</p>
 
         {/* Description */}
@@ -75,7 +75,16 @@ export function AboutPage() {
 
         {/* Footer */}
         <p className="text-xs text-muted-foreground mt-6">
-          如果觉得不错，请分享给你的朋友 ✌️
+          本项目基于{' '}
+          <a
+            href="https://github.com/wechatsync/Wechatsync"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-primary hover:underline"
+          >
+            Wechatsync
+          </a>{' '}
+          开发
         </p>
       </div>
     </div>

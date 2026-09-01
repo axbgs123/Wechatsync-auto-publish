@@ -34,6 +34,118 @@ export interface SyncResult {
 }
 
 /**
+ * 对外返回的稳定草稿同步结果。
+ *
+ * 与适配器内部使用的 SyncResult 分开，避免要求所有适配器在失败时
+ * 构造并不存在的草稿 ID/URL，同时保证跨进程 JSON 协议字段稳定。
+ */
+export interface DraftSyncResult {
+  platform: string
+  platformName: string
+  draftName: string
+  postId: string | null
+  postUrl: string | null
+  draftOnly: true
+  success: boolean
+  error: string | null
+  timestamp: number
+  message?: string
+}
+
+/** MCP/CLI syncArticle 的稳定返回结构。 */
+export interface SyncArticleResponse {
+  syncId: string
+  results: DraftSyncResult[]
+}
+
+/** 草稿进入独立发布器前的生命周期状态。 */
+export type DraftRecordStatus =
+  | 'draft_created'
+  | 'ready_to_publish'
+  | 'publishing'
+  | 'published'
+  | 'failed'
+
+/** 已成功创建、可供后续发布器查询的草稿记录。 */
+export interface DraftRecord {
+  syncId: string
+  platform: string
+  platformName: string
+  draftId: string
+  draftName: string
+  draftUrl: string | null
+  contentHash: string
+  createdAt: number
+  status: DraftRecordStatus
+  /** 最近一次真正发起平台发布请求的时间，用于识别中断后遗留的 publishing 状态。 */
+  lastPublishAttemptAt?: number
+  publishIdempotencyKey?: string
+  publishedPostId?: string
+  publishedPostUrl?: string
+  publishedAt?: number
+}
+
+export interface DraftRecordQuery {
+  platform?: string
+  status?: DraftRecordStatus
+}
+
+/** 发布器展示给用户确认的只读预览。 */
+export interface DraftPublishPreview {
+  platform: string
+  platformName: string
+  draftId: string
+  draftName: string
+  draftUrl: string | null
+  summary: string
+}
+
+export type DraftPublishResultStatus = 'published' | 'reviewing' | 'unverified' | 'failed' | 'blocked'
+
+/** 独立发布器结果。success 表示平台已接受发布操作；status 区分已公开、审核中等状态。 */
+export interface DraftPublishResult {
+  platform: string
+  platformName: string
+  success: boolean
+  status: DraftPublishResultStatus
+  postId: string | null
+  postUrl: string | null
+  publishedAt: number | null
+  error: string | null
+  idempotencyKey?: string
+}
+
+export type PublishAuditEvent =
+  | 'previewed'
+  | 'publish_started'
+  | 'publish_submitted'
+  | 'publish_succeeded'
+  | 'publish_failed'
+  | 'publish_blocked'
+  | 'publish_recovered'
+
+export interface PublishAuditRecord {
+  id: string
+  idempotencyKey: string
+  platform: string
+  draftId: string
+  draftName: string
+  event: PublishAuditEvent
+  resultStatus: DraftPublishResultStatus | null
+  error: string | null
+  createdAt: number
+}
+
+/** 平台发布器契约；与 syncArticle/平台草稿适配器相互独立。 */
+export interface DraftPublisher {
+  readonly platform: string
+  getPreview(record: DraftRecord): Promise<DraftPublishPreview>
+  /** 中断恢复时只读检查平台结果；无法确认时返回 null。 */
+  verifyPublished?(record: DraftRecord): Promise<DraftPublishResult | null>
+  publish(record: DraftRecord): Promise<DraftPublishResult>
+}
+
+/**
  * 认证状态
  */
 export interface AuthResult {
@@ -55,6 +167,9 @@ export type PlatformCapability =
   | 'tags'         // 标签
   | 'cover'        // 封面图
   | 'schedule'     // 定时发布
+  | 'draft_only'      // 当前只支持创建草稿
+  | 'browser_publish' // 使用浏览器登录态执行公开发布
+  | 'api_publish'     // 使用平台正式 API 执行公开发布
 
 /**
  * 平台元信息

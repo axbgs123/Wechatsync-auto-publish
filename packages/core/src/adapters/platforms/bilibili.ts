@@ -21,7 +21,7 @@ export class BilibiliAdapter extends CodeAdapter {
     name: '哔哩哔哩',
     icon: 'https://www.bilibili.com/favicon.ico',
     homepage: 'https://member.bilibili.com/platform/upload/text',
-    capabilities: ['article', 'draft', 'image_upload'],
+    capabilities: ['article', 'draft', 'image_upload', 'browser_publish'],
   }
 
   /** 预处理配置: B站使用 HTML，移除外链 */
@@ -134,7 +134,7 @@ export class BilibiliAdapter extends CodeAdapter {
         throw new Error(res.message || '保存草稿失败')
       }
 
-      const draftUrl = `https://member.bilibili.com/platform/upload/text/edit?aid=${res.data.aid}`
+      const draftUrl = `https://member.bilibili.com/york/read-editor?aid=${res.data.aid}`
 
       return this.createResult(true, {
         postId: String(res.data.aid),

@@ -9,6 +9,9 @@ import {
 import { markdownToHtml } from '@wechatsync/core'
 import { createLogger } from '../lib/logger'
 import { performSync } from '../background/sync-service'
+import { listDraftRecords, updateDraftRecordStatus } from '../background/draft-registry'
+import { publishDraftByUserAction } from '../publisher'
+import type { DraftRecordStatus } from '@wechatsync/core'
 
 const logger = createLogger('MCPClient')
 
@@ -52,6 +55,7 @@ class McpClient {
   // 温热/冷却双阶段重连配置
   private reconnectAttempts = 0
   private lastConnectedAt = 0 // 上次成功连接的时间戳
+  private lastHeartbeatAt = 0
   private activelyWatched = false // 用户正在查看设置页
   private readonly WARM_WINDOW = 5 * 60 * 1000 // 5 分钟内视为温热
   // 温热阶段：刚断开，快速重连
@@ -127,6 +131,7 @@ class McpClient {
         logger.debug('Connected to MCP Server')
         this.reconnectAttempts = 0 // 重置重连计数
         this.lastConnectedAt = Date.now() // 记录连接时间
+        this.lastHeartbeatAt = this.lastConnectedAt
         if (this.reconnectTimer) {
           clearTimeout(this.reconnectTimer)
           this.reconnectTimer = null
@@ -257,12 +262,27 @@ class McpClient {
     }
   }
 
+  /** 供 chrome.alarms 和设置页手动唤醒连接。 */
+  ensureConnected(): void {
+    if (this.ws?.readyState === WebSocket.OPEN || this.ws?.readyState === WebSocket.CONNECTING) return
+    this.reconnectAttempts = 0
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer)
+      this.reconnectTimer = null
+    }
+    this.connect()
+  }
+
   /**
    * 处理来自 MCP Server 的请求
    */
   private async handleMessage(data: string): Promise<void> {
     try {
       const message: RequestMessage = JSON.parse(data)
+      if (message.method === '__heartbeat') {
+        this.lastHeartbeatAt = Date.now()
+        return
+      }
       logger.debug('Received:', message.method)
 
       let result: unknown
@@ -300,6 +320,15 @@ class McpClient {
       this.ws?.send(JSON.stringify(response))
     } catch (error) {
       logger.error('Failed to handle message:', error)
+    }
+  }
+
+  getConnectionInfo(): { connected: boolean; serverUrl: string; lastConnectedAt: number; lastHeartbeatAt: number } {
+    return {
+      connected: this.isConnected(),
+      serverUrl: this.serverUrl,
+      lastConnectedAt: this.lastConnectedAt,
+      lastHeartbeatAt: this.lastHeartbeatAt,
     }
   }
 
@@ -367,6 +396,35 @@ class McpClient {
         )
 
         return { results, syncId }
+      }
+
+      case 'listDrafts': {
+        return await listDraftRecords({
+          platform: params?.platform as string | undefined,
+          status: params?.status as DraftRecordStatus | undefined,
+        })
+      }
+
+      case 'resetDraft': {
+        const platform = params?.platform as string
+        const draftId = params?.draftId as string
+        if (!platform) throw new Error('Missing platform parameter')
+        if (!draftId) throw new Error('Missing draftId parameter')
+        return {
+          updated: await updateDraftRecordStatus(platform, draftId, 'draft_created'),
+        }
+      }
+
+      case 'publishDraft': {
+        const platform = params?.platform as string
+        const draftId = params?.draftId as string
+        const confirmed = params?.confirmed === true
+        const retryUnverified = params?.retryUnverified === true
+        if (!platform) throw new Error('Missing platform parameter')
+        if (!draftId) throw new Error('Missing draftId parameter')
+        if (!confirmed) throw new Error('公开发布必须显式设置 confirmed=true')
+
+        return await publishDraftByUserAction(platform, draftId, true, retryUnverified)
       }
 
       case 'extractArticle': {
@@ -571,9 +629,11 @@ export function stopMcpClient(): void {
 }
 
 // 获取连接状态
-export function getMcpStatus(): { connected: boolean; serverUrl: string } {
-  return {
-    connected: mcpClient.isConnected(),
-    serverUrl: mcpClient.getServerUrl(),
-  }
+export function getMcpStatus(): {
+  connected: boolean
+  serverUrl: string
+  lastConnectedAt: number
+  lastHeartbeatAt: number
+} {
+  return mcpClient.getConnectionInfo()
 }

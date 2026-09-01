@@ -3,6 +3,7 @@ import { HomeNew } from './pages/HomeNew'
 import { AddCMSPage } from './pages/AddCMS'
 import { HistoryPage } from './pages/History'
 import { AboutPage } from './pages/About'
+import { PublisherPage } from './pages/Publisher'
 
 export default function App() {
   return (
@@ -12,6 +13,7 @@ export default function App() {
           <Route path="/" element={<HomeNew />} />
           <Route path="/add-cms" element={<AddCMSPage />} />
           <Route path="/history" element={<HistoryPage />} />
+          <Route path="/publisher" element={<PublisherPage />} />
           <Route path="/about" element={<AboutPage />} />
         </Routes>
       </div>

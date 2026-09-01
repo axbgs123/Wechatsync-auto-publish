@@ -86,7 +86,8 @@ export class WeiboAdapter extends CodeAdapter {
 
     const configMatch = html.match(/config:\s*JSON\.parse\('(.+?)'\)/)
     if (!configMatch) {
-      logger.error('Failed to find config in HTML')
+      // 未登录或微博返回了非编辑器页面时的正常分支，不应记为扩展运行错误。
+      logger.debug('Weibo editor config not found; treating as unauthenticated')
       return null
     }
 

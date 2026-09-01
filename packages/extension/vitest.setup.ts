@@ -45,6 +45,12 @@ const chromeMock = {
     create: vi.fn(),
     sendMessage: vi.fn(),
   },
+  declarativeNetRequest: {
+    RuleActionType: { MODIFY_HEADERS: 'modifyHeaders' },
+    HeaderOperation: { SET: 'set' },
+    updateDynamicRules: vi.fn(async () => undefined),
+    getDynamicRules: vi.fn(async () => []),
+  },
 }
 
 // 挂载到全局

@@ -12,7 +12,13 @@ import {
 } from '@modelcontextprotocol/sdk/types.js'
 import express, { type Request, type Response } from 'express'
 import { ExtensionBridge } from './ws-bridge.js'
-import type { PlatformInfo, SyncResult } from './types.js'
+import type {
+  DraftPublishResult,
+  DraftRecord,
+  DraftRecordStatus,
+  PlatformInfo,
+  SyncArticleResponse,
+} from './types.js'
 
 export class SyncAssistantMcpServer {
   private server: Server
@@ -158,6 +164,45 @@ export class SyncAssistantMcpServer {
             },
           },
           {
+            name: 'list_drafts',
+            description: '查询已创建的草稿记录。只读取草稿队列，不执行公开发布。',
+            inputSchema: {
+              type: 'object',
+              properties: {
+                platform: {
+                  type: 'string',
+                  description: '按平台 ID 过滤（可选）',
+                },
+                status: {
+                  type: 'string',
+                  enum: ['draft_created', 'ready_to_publish', 'publishing', 'published', 'failed'],
+                  description: '按草稿状态过滤（可选）',
+                },
+              },
+            },
+          },
+          {
+            name: 'publish_draft',
+            description: '通过 Chrome 登录态自动公开发布一个已登记草稿。调用会直接执行平台发布动作；success 表示平台已接受发布操作，status 用于区分已公开与审核中。',
+            inputSchema: {
+              type: 'object',
+              properties: {
+                platform: { type: 'string', description: '草稿所属平台 ID' },
+                draftId: { type: 'string', description: '草稿 ID' },
+                confirmed: {
+                  type: 'boolean',
+                  const: true,
+                  description: '必须显式传 true，表示确认执行公开发布',
+                },
+                retryUnverified: {
+                  type: 'boolean',
+                  description: '上一次浏览器发布未出现二维码或无可验证结果时，由用户明确确认后重试',
+                },
+              },
+              required: ['platform', 'draftId', 'confirmed'],
+            },
+          },
+          {
             name: 'extract_article',
             description: '从当前浏览器页面提取文章内容',
             inputSchema: {
@@ -205,7 +250,7 @@ export class SyncAssistantMcpServer {
             break
 
           case 'sync_article':
-            result = await this.bridge.request<SyncResult[]>('syncArticle', {
+            result = await this.bridge.request<SyncArticleResponse>('syncArticle', {
               platforms: (args as { platforms: string[] }).platforms,
               article: {
                 title: (args as { title: string }).title,
@@ -215,6 +260,34 @@ export class SyncAssistantMcpServer {
               },
             })
             break
+
+          case 'list_drafts':
+            result = await this.bridge.request<DraftRecord[]>('listDrafts', {
+              platform: (args as { platform?: string })?.platform,
+              status: (args as { status?: DraftRecordStatus })?.status,
+            })
+            break
+
+          case 'publish_draft': {
+            const publishArgs = args as {
+              platform?: string
+              draftId?: string
+              confirmed?: boolean
+              retryUnverified?: boolean
+            }
+            if (!publishArgs?.platform) throw new Error('platform is required')
+            if (!publishArgs?.draftId) throw new Error('draftId is required')
+            if (publishArgs.confirmed !== true) {
+              throw new Error('公开发布必须显式设置 confirmed=true')
+            }
+            result = await this.bridge.request<DraftPublishResult>('publishDraft', {
+              platform: publishArgs.platform,
+              draftId: publishArgs.draftId,
+              confirmed: true,
+              retryUnverified: publishArgs.retryUnverified === true,
+            })
+            break
+          }
 
           case 'extract_article':
             result = await this.bridge.request('extractArticle')

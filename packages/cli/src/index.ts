@@ -16,7 +16,7 @@ import fs from 'fs'
 import path from 'path'
 import juice from 'juice'
 import { ExtensionBridge } from '@wechatsync/mcp-server/bridge'
-import type { PlatformInfo, SyncResult } from '@wechatsync/mcp-server/bridge'
+import type { PlatformInfo, SyncArticleResponse } from '@wechatsync/mcp-server/bridge'
 
 const WS_PORT = parseInt(process.env.SYNC_WS_PORT || '9527', 10)
 
@@ -744,7 +744,7 @@ program
     const syncSpinner = ora('正在同步...').start()
 
     try {
-      const response = await bridge.request<{ results: SyncResult[]; syncId: string }>('syncArticle', {
+      const response = await bridge.request<SyncArticleResponse>('syncArticle', {
         platforms,
         article: {
           title,
@@ -762,19 +762,24 @@ program
       console.log()
 
       for (const result of results) {
+        const platformLabel = result.platformName === result.platform
+          ? result.platformName
+          : `${result.platformName} (${result.platform})`
         if (result.success) {
           console.log(
             chalk.green('  ✓'),
-            chalk.bold(result.platform),
-            result.draftOnly ? chalk.gray('(草稿)') : ''
+            chalk.bold(platformLabel),
+            chalk.gray('(草稿)')
           )
-          if (result.postUrl) {
-            console.log(`    ${chalk.cyan(result.postUrl)}`)
-          }
+          console.log(`    草稿名称: ${result.draftName}`)
+          console.log(`    草稿 ID: ${result.postId || '-'}`)
+          console.log(`    草稿 URL: ${result.postUrl ? chalk.cyan(result.postUrl) : '-'}`)
         } else {
-          console.log(chalk.red('  ✗'), chalk.bold(result.platform))
-          console.log(`    ${chalk.red(result.error || '未知错误')}`)
+          console.log(chalk.red('  ✗'), chalk.bold(platformLabel), chalk.gray('(草稿创建失败)'))
+          console.log(`    草稿名称: ${result.draftName}`)
+          console.log(`    错误: ${chalk.red(result.error || '未知错误')}`)
         }
+        console.log(`    同步时间: ${new Date(result.timestamp).toLocaleString()}`)
       }
 
       const successCount = results.filter((r) => r.success).length
@@ -782,6 +787,7 @@ program
       console.log(
         `同步完成: ${chalk.green(successCount + ' 成功')}, ${chalk.red((results.length - successCount) + ' 失败')}`
       )
+      console.log(chalk.gray(`同步 ID: ${response.syncId}`))
     } catch (error) {
       syncSpinner.fail('同步失败')
       console.error(chalk.red((error as Error).message))

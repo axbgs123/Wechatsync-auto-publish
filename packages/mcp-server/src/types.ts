@@ -30,6 +30,7 @@ export interface PlatformInfo {
   username?: string
   avatar?: string
   error?: string
+  capabilities?: string[]
 }
 
 // 文章数据
@@ -53,9 +54,74 @@ export interface SyncResult {
   timestamp: number
 }
 
+// syncArticle 对外返回的稳定草稿结果
+export interface DraftSyncResult {
+  platform: string
+  platformName: string
+  draftName: string
+  postId: string | null
+  postUrl: string | null
+  draftOnly: true
+  success: boolean
+  error: string | null
+  timestamp: number
+  message?: string
+}
+
+export interface SyncArticleResponse {
+  syncId: string
+  results: DraftSyncResult[]
+}
+
+export type DraftRecordStatus =
+  | 'draft_created'
+  | 'ready_to_publish'
+  | 'publishing'
+  | 'published'
+  | 'failed'
+
+export interface DraftRecord {
+  syncId: string
+  platform: string
+  platformName: string
+  draftId: string
+  draftName: string
+  draftUrl: string | null
+  contentHash: string
+  createdAt: number
+  status: DraftRecordStatus
+  lastPublishAttemptAt?: number
+  publishIdempotencyKey?: string
+  publishedPostId?: string
+  publishedPostUrl?: string
+  publishedAt?: number
+}
+
+export type DraftPublishResultStatus =
+  | 'published'
+  | 'reviewing'
+  | 'unverified'
+  | 'failed'
+  | 'blocked'
+
+export interface DraftPublishResult {
+  platform: string
+  platformName: string
+  success: boolean
+  status: DraftPublishResultStatus
+  postId: string | null
+  postUrl: string | null
+  publishedAt: number | null
+  error: string | null
+  idempotencyKey?: string
+}
+
 // Extension 支持的方法
 export type ExtensionMethod =
   | 'listPlatforms'
   | 'checkAuth'
   | 'syncArticle'
+  | 'listDrafts'
+  | 'resetDraft'
+  | 'publishDraft'
   | 'extractArticle'

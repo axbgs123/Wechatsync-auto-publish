@@ -43,6 +43,7 @@ import {
   CnblogsAdapter,
   ZipDownloadAdapter,
   EastmoneyAdapter,
+  ToutiaoAdapter,
 } from '@wechatsync/core'
 
 // 私有适配器 - private/ 目录通过 git submodule 管理
@@ -97,6 +98,7 @@ const ADAPTER_CLASSES: AdapterConstructor[] = [
   CnblogsAdapter,
   ZipDownloadAdapter,
   EastmoneyAdapter,
+  ToutiaoAdapter,
   ...getPrivateAdapters(),
 ]
 
@@ -110,8 +112,18 @@ interface AdapterEntry {
 // 生成适配器注册条目（包含 preprocessConfig）
 const adapterEntries: AdapterEntry[] = ADAPTER_CLASSES.map(AdapterClass => {
   const instance = new AdapterClass()
+  const hasPublishMode = instance.meta.capabilities.some(capability => (
+    capability === 'draft_only'
+    || capability === 'browser_publish'
+    || capability === 'api_publish'
+  ))
   return {
-    meta: instance.meta,
+    meta: {
+      ...instance.meta,
+      capabilities: hasPublishMode
+        ? instance.meta.capabilities
+        : [...instance.meta.capabilities, 'draft_only'],
+    },
     factory: () => new AdapterClass(),
     preprocessConfig: (instance as unknown as { preprocessConfig?: Record<string, unknown> }).preprocessConfig,
   }

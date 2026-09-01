@@ -28,6 +28,10 @@ import {
 import { checkSyncFrequency, recordSync } from '../lib/rate-limit'
 import { checkForUpdates, isUpdateDismissed } from '../lib/version-check'
 import { fetchRemoteConfig, fetchConfigIfNeeded } from '../lib/remote-config'
+import { listDraftRecords } from './draft-registry'
+import { getDraftPublishPreview, publishDraftByUserAction } from '../publisher'
+import { listPublishAudit } from '../publisher/audit'
+import type { DraftRecordStatus } from '@wechatsync/core'
 
 const logger = createLogger('Background')
 
@@ -125,6 +129,10 @@ type MessageAction =
   | { type: 'GET_PLATFORMS' }
   | { type: 'CHECK_ALL_AUTH'; payload?: { forceRefresh?: boolean } }
   | { type: 'CHECK_AUTH'; payload: { platformId: string } }
+  | { type: 'LIST_DRAFT_RECORDS'; payload?: { platform?: string; status?: DraftRecordStatus } }
+  | { type: 'GET_DRAFT_PREVIEW'; payload: { platform: string; draftId: string } }
+  | { type: 'PUBLISH_DRAFT'; payload: { platform: string; draftId: string; confirmed: boolean } }
+  | { type: 'LIST_PUBLISH_AUDIT' }
   | { type: 'SYNC_ARTICLE'; payload: { article: any; platforms: string[]; allSelectedPlatforms?: string[]; skipHistory?: boolean; source?: string; syncId?: string } }
   | { type: 'OPEN_SYNC_PAGE'; path?: string }
   | { type: 'TEST_CMS_CONNECTION'; payload: { type: CMSType; url: string; username: string; password: string } }
@@ -135,6 +143,7 @@ type MessageAction =
   | { type: 'MCP_SET_SERVER_URL'; payload: { url: string } }
   | { type: 'MCP_WATCH_START' }
   | { type: 'MCP_WATCH_STOP' }
+  | { type: 'MCP_RECONNECT' }
   | { type: 'TRACK_ARTICLE_EXTRACT'; payload: { source: string; success: boolean; hasTitle?: boolean; hasContent?: boolean; hasCover?: boolean; contentLength?: number } }
   | { type: 'GET_SYNC_STATE' }
   | { type: 'CLEAR_SYNC_STATE' }
@@ -190,6 +199,7 @@ async function handleMessage(message: MessageAction, sender?: chrome.runtime.Mes
           username: a.username,
           sourceType: 'cms' as const,
           cmsType: a.type,
+          capabilities: ['article', 'draft', 'draft_only'],
         }))
 
       const allPlatforms = [...dslWithType, ...cmsPlatforms]
@@ -202,6 +212,38 @@ async function handleMessage(message: MessageAction, sender?: chrome.runtime.Mes
       const { platformId } = message.payload
       const auth = await checkPlatformAuth(platformId)
       return { auth }
+    }
+
+    case 'LIST_DRAFT_RECORDS': {
+      return {
+        records: await listDraftRecords({
+          platform: message.payload?.platform,
+          status: message.payload?.status,
+        }),
+      }
+    }
+
+    case 'GET_DRAFT_PREVIEW': {
+      return {
+        preview: await getDraftPublishPreview(
+          message.payload.platform,
+          message.payload.draftId
+        ),
+      }
+    }
+
+    case 'PUBLISH_DRAFT': {
+      return {
+        result: await publishDraftByUserAction(
+          message.payload.platform,
+          message.payload.draftId,
+          message.payload.confirmed
+        ),
+      }
+    }
+
+    case 'LIST_PUBLISH_AUDIT': {
+      return { records: await listPublishAudit() }
     }
 
     case 'SYNC_ARTICLE': {
@@ -661,6 +703,11 @@ async function handleMessage(message: MessageAction, sender?: chrome.runtime.Mes
       return { success: true }
     }
 
+    case 'MCP_RECONNECT': {
+      mcpClient.ensureConnected()
+      return { success: true }
+    }
+
     case 'MCP_STATUS': {
       const storage = await chrome.storage.local.get(['mcpEnabled', 'mcpToken', 'mcpServerUrl'])
       const mcpStatus = getMcpStatus()
@@ -669,6 +716,8 @@ async function handleMessage(message: MessageAction, sender?: chrome.runtime.Mes
         connected: mcpStatus.connected,
         token: storage.mcpToken,  // 返回 token 供 MCP Server 使用
         serverUrl: storage.mcpServerUrl || '',
+        lastConnectedAt: mcpStatus.lastConnectedAt,
+        lastHeartbeatAt: mcpStatus.lastHeartbeatAt,
       }
     }
 
@@ -1025,6 +1074,7 @@ async function handleMessage(message: MessageAction, sender?: chrome.runtime.Mes
           username: a.username,
           sourceType: 'cms' as const,
           cmsType: a.type,
+          capabilities: ['article', 'draft', 'draft_only'],
         }))
 
       chrome.tabs.sendMessage(tabId, {
@@ -1094,6 +1144,7 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
           username: a.username,
           sourceType: 'cms' as const,
           cmsType: a.type,
+          capabilities: ['article', 'draft', 'draft_only'],
         }))
 
       // 合并所有平台
@@ -1141,10 +1192,10 @@ chrome.runtime.onInstalled.addListener(async details => {
 
     // 重要版本升级时显示更新日志
     const showChangelogVersions = ['2.0.8', '2.0.9']
-    if (
+    if (previousVersion !== currentVersion && (
       showChangelogVersions.includes(currentVersion) ||
       (previousVersion.startsWith('1.') && currentVersion.startsWith('2.'))
-    ) {
+    )) {
       chrome.tabs.create({
         url: 'https://www.wechatsync.com/changelog?from=' + previousVersion + '&to=' + currentVersion,
         active: true,
@@ -1215,12 +1266,19 @@ preCheckPlatformsAuth()
 chrome.alarms.create('daily_growth_metrics', { periodInMinutes: 24 * 60 })
 // 设置远程配置定期拉取（每 6 小时）
 chrome.alarms.create('remote_config_fetch', { periodInMinutes: 6 * 60 })
+// Manifest V3 后台被唤醒时检查 MCP 连接；实际保活由 WebSocket 心跳完成。
+chrome.alarms.create('mcp_connection_watchdog', { periodInMinutes: 1 })
 chrome.alarms.onAlarm.addListener((alarm) => {
   if (alarm.name === 'daily_growth_metrics') {
     trackGrowthMetrics().catch(() => {})
   }
   if (alarm.name === 'remote_config_fetch') {
     fetchRemoteConfig().catch(() => {})
+  }
+  if (alarm.name === 'mcp_connection_watchdog') {
+    chrome.storage.local.get('mcpEnabled').then(storage => {
+      if (storage.mcpEnabled) mcpClient.ensureConnected()
+    }).catch(() => {})
   }
 })
 
