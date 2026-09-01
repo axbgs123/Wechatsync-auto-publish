@@ -1,4 +1,8 @@
-# 文章同步助手 (Wechatsync)
+# 文章同步助手2.0.9 自动发布集成版
+
+基于 Chrome 登录态运行的多平台内容分发工具。除了将 Markdown、HTML 或网页文章同步为
+平台草稿，本版本还增加了独立发布器，可在扩展界面或通过 MCP 完成“创建草稿 → 确认发布
+→ 状态核验”的完整流程。
 
 > [!IMPORTANT]
 > 本仓库是基于 [wechatsync/Wechatsync](https://github.com/wechatsync/Wechatsync)
@@ -11,93 +15,85 @@
 > 原项目及本修改版均依据 [GNU General Public License v3.0](LICENSE) 发布。
 > 使用、修改和再分发时须继续遵守 GPL-3.0，并保留原作者及许可证声明。
 
-![](https://img.shields.io/github/v/release/wechatsync/Wechatsync.svg)
-![](https://img.shields.io/github/last-commit/wechatsync/Wechatsync)
-![](https://img.shields.io/github/issues/wechatsync/Wechatsync)
+![License](https://img.shields.io/github/license/axbgs123/Wechatsync-auto-publish)
+![Last commit](https://img.shields.io/github/last-commit/axbgs123/Wechatsync-auto-publish/v2)
 
-**开源免费**的跨平台文章同步工具 | Chrome 浏览器扩展 | 自媒体内容分发神器
+## 本版本提供什么
 
-一键同步微信公众号文章到知乎、头条、掘金、小红书、CSDN 等 29+ 平台，支持 WordPress 等自建博客，告别重复复制粘贴。
-
-> 🔥 支持 **Anthropic MCP 协议**，可在 Claude Desktop / Claude Code 中通过 AI 一键发布文章
+- **多平台草稿同步**：一次提交到多个内容平台，默认先保存为草稿。
+- **独立自动发布器**：草稿创建后可单独预览、确认并公开发布，不改变草稿优先原则。
+- **MCP 自动发布**：Claude Desktop、Claude Code 等 MCP 客户端可创建草稿、查询草稿，并在显式确认后执行发布。
+- **发布状态核验**：区分已发布、审核中、结果未确认、失败和已阻止重复发布等状态。
+- **发布幂等与恢复**：阻止同一草稿重复发布，并支持中断后的状态核验与恢复。
+- **浏览器登录态**：直接使用用户已经登录的平台会话，不要求在项目中保存平台密码或 Cookie。
+- **网页与本地文章输入**：支持网页正文提取、Markdown、HTML、本地图片和封面处理。
+- **CMS 支持**：支持 WordPress 与 MetaWeblog 协议账号。
 
 ## 工作原理
 
-**文章同步助手不是爬虫，不模拟登录，不经过任何第三方服务器。**
+**文章同步助手不提供平台账号托管，也不要求把 Cookie、Token 或密码交给第三方服务器。**
 
 它是一个 Chrome 浏览器扩展，工作方式与浏览器本身一致：
 
 1. **使用你自己的登录态**：你在浏览器里正常登录各平台账号，扩展直接使用浏览器中已有的 Cookie，无需额外授权，无需输入密码
-2. **调用平台官方接口**：发布文章时，扩展调用的是各平台 Web 编辑器使用的同一套官方 API，与你手动在网页上发布完全等价
+2. **调用平台网页端接口**：扩展通过平台编辑器使用的接口创建草稿或提交发布
 3. **数据不离开你的设备**：所有请求直接从你的浏览器发往各平台，没有中间服务器，没有数据上传，源代码完全开源可审计
-4. **草稿优先**：默认将文章同步为草稿，发布前由你人工确认，不会自动发布
+4. **草稿与发布分离**：`syncArticle` 只创建草稿；公开发布由独立发布器或 MCP `publish_draft` 显式触发
 
 ```
 你的浏览器（已登录各平台）
     ↓  扩展读取 Cookie
     ↓  调用平台官方 Web API
-各平台（知乎 / 掘金 / 头条 / ...）
+平台草稿 → 用户确认 → 独立发布器 → 公开文章或平台审核
 ```
-
-## 功能特性
-
-- **一键批量发布**: 微信公众号文章同步到知乎、掘金、头条、CSDN、简书、微博、小红书、抖音等 29+ 自媒体平台
-- **网页转 Markdown**: 任意网页智能提取正文，自动过滤广告噪音，图片本地化，打包为 Markdown + 图片 ZIP 压缩包
-- **自建站支持**: WordPress、Typecho、博客园 (MetaWeblog API)
-- **智能提取**: 自动从网页提取文章标题、内容、封面图（基于 Safari 阅读模式）
-- **图片自动上传**: 自动转存文章图片到目标平台，无需手动处理
-- **草稿模式**: 同步后保存为草稿，方便二次编辑后发布
-- **AI 集成**: 支持 Anthropic MCP / Claude Code Skill / OpenClaw，多种方式接入 AI 工作流
 
 ## 安装方式
 
-### Chrome 浏览器扩展安装
+本集成版当前建议从源码构建安装：
 
-**推荐**: [Chrome 网上应用店](https://chrome.google.com/webstore/detail/%E5%BE%AE%E4%BF%A1%E5%90%8C%E6%AD%A5%E5%8A%A9%E6%89%8B/hchobocdmclopcbnibdnoafilagadion) (自动更新)
+```bash
+git clone https://github.com/axbgs123/Wechatsync-auto-publish.git
+cd Wechatsync-auto-publish
+git checkout v2
+pnpm install
+pnpm build:extension
+```
 
-**手动安装**: 下载 [最新 Release](https://wpics.oss-cn-shanghai.aliyuncs.com/wechatsync-2.0.9.zip?date=20260324) 解压后加载到 Chrome 扩展
+然后在 Chrome 的“管理扩展程序”中开启开发者模式，加载 `packages/extension/dist`。
 
-支持 Chrome / Edge / 360 / QQ 等 Chromium 内核浏览器
+> 原版 Chrome 商店版本不包含本仓库新增的独立自动发布能力。
 
+## 当前支持的平台
 
-## 支持 29+ 主流平台
+公开源码当前注册 20 个内置适配器，并支持 WordPress、Typecho 等 CMS 账号：
 
-| 平台 | ID | 类型 | 状态 |
-|-----|-----|-----|-----|
-| 微信公众号 | weixin | 主流自媒体 | ✅ |
-| 知乎 | zhihu | 主流自媒体 | ✅ |
-| 微博 | weibo | 主流自媒体 | ✅ |
-| 小红书 | xiaohongshu | 主流自媒体 | ✅ |
-| 掘金 | juejin | 技术社区 | ✅ |
-| CSDN | csdn | 技术社区 | ✅ |
-| 简书 | jianshu | 通用 | ✅ |
-| 头条号 | toutiao | 通用 | ✅ |
-| 抖音图文 | douyin | 主流自媒体 | ✅ 🆕 |
-| B站专栏 | bilibili | 通用 | ✅ |
-| 百家号 | baijiahao | 通用 | ✅ |
-| 语雀 | yuque | 技术社区 | ✅ |
-| 豆瓣 | douban | 通用 | ✅ |
-| 搜狐号 | sohu | 通用 | ✅ |
-| 雪球 | xueqiu | 财经 | ✅ |
-| 人人都是产品经理 | woshipm | 产品 | ✅ |
-| 大鱼号 | dayu | 通用 | ✅ |
-| 一点号 | yidian | 通用 | ✅ |
-| 51CTO | 51cto | 技术社区 | ✅ |
-| 慕课网 | imooc | 技术社区 | ✅ |
-| 开源中国 | oschina | 技术社区 | ✅ |
-| SegmentFault | segmentfault | 技术社区 | ✅ |
-| 博客园 | cnblogs | 技术社区 | ✅ |
-| 搜狐焦点 | sohufocus | 房产 | ✅ |
-| X (Twitter) | x | 海外 | ✅ |
-| 东方财富 | eastmoney | 财经 | ✅ |
-| 什么值得买 | smzdm | 通用 | ✅ |
-| 网易号 | netease | 通用 | ✅ |
-| WordPress | wordpress | 建站/CMS | ✅ |
-| Typecho | typecho | 建站/CMS | ✅ |
-| Hexo | zip-download | 建站/CMS | ✅ 通过 Markdown 下载 |
-| Hugo | zip-download | 建站/CMS | ✅ 通过 Markdown 下载 |
+| 平台 | ID | 草稿同步/导出 | 独立自动发布 |
+|---|---|---:|---:|
+| 微信公众号 | `weixin` | ✅ | ✅ 已接入 |
+| 知乎 | `zhihu` | ✅ | ✅ 已验证 |
+| 今日头条 | `toutiao` | ✅ | ✅ 已接入 |
+| 百家号 | `baijiahao` | ✅ | ✅ 已接入 |
+| B站专栏 | `bilibili` | ✅ | ✅ 已接入 |
+| 搜狐号 | `sohu` | ✅ | ✅ 已接入 |
+| 掘金 | `juejin` | ✅ | — |
+| CSDN | `csdn` | ✅ | — |
+| 微博 | `weibo` | ✅ | — |
+| 语雀 | `yuque` | ✅ | — |
+| 豆瓣 | `douban` | ✅ | — |
+| 雪球 | `xueqiu` | ✅ | — |
+| 东方财富 | `eastmoney` | ✅ | — |
+| 人人都是产品经理 | `woshipm` | ✅ | — |
+| 51CTO | `51cto` | ✅ | — |
+| 慕课网 | `imooc` | ✅ | — |
+| 开源中国 | `oschina` | ✅ | — |
+| SegmentFault | `segmentfault` | ✅ | — |
+| 博客园 | `cnblogs` | ✅ | — |
+| Markdown ZIP 导出 | `zip-download` | ✅ | 不适用 |
 
-- [提交新平台请求](https://airtable.com/shrLSJMnTC2BlmP29)
+CMS 还支持 WordPress API 与 MetaWeblog 协议，可用于 WordPress、Typecho 等自建站点。
+
+> “已接入”表示代码已实现浏览器发布流程；平台接口、账号权限和审核策略可能变化，
+> 首次使用请先用测试文章验证。公开发布始终需要显式确认。
 
 ## CLI 命令行工具
 
@@ -143,9 +139,20 @@ clawhub install lljxx1/wechatsync
 
 详细文档见 [packages/cli/README.md](packages/cli/README.md)
 
-## Claude Code / Claude Desktop 集成 (Anthropic MCP)
+## MCP 自动发布
 
-通过 Anthropic MCP 协议，可以在 Claude Code 或 Claude Desktop 中使用 AI 同步公众号文章到多个平台。
+通过 MCP，Claude Desktop、Claude Code 等客户端不仅能同步文章草稿，还能继续查询草稿并调用
+独立发布器完成公开发布。MCP 使用本机 Chrome 的登录态，文章和账号会话不需要交给远端服务。
+
+标准流程：
+
+1. 调用 `sync_article`，向一个或多个平台创建草稿。
+2. 调用 `list_drafts`，读取草稿 ID、平台和当前状态。
+3. 用户检查草稿并明确同意发布。
+4. 调用 `publish_draft`，同时传入 `confirmed: true`。
+5. 根据返回值区分 `published`、`reviewing`、`unverified`、`failed` 或 `blocked`。
+
+其中 `sync_article` 不会直接公开文章；只有 `publish_draft` 会执行公开发布动作。
 
 ### 配置步骤
 
@@ -158,7 +165,7 @@ clawhub install lljxx1/wechatsync
   "mcpServers": {
     "sync-assistant": {
       "command": "node",
-      "args": ["/path/to/Wechatsync/packages/mcp-server/dist/index.js"],
+      "args": ["/path/to/Wechatsync-auto-publish/packages/mcp-server/dist/index.js"],
       "env": {
         "MCP_TOKEN": "your-secret-token-here"
       }
@@ -169,11 +176,23 @@ clawhub install lljxx1/wechatsync
 
 **重要**: `MCP_TOKEN` 必须与 Chrome 扩展中设置的 Token 一致。
 
-### 使用示例
+### 自然语言使用示例
 
 ```
-"帮我把这篇文章同步到知乎和掘金"
+"把这篇文章同步到知乎和今日头条，先保存草稿"
+"列出刚才创建的草稿"
+"我已经确认草稿内容，发布知乎草稿 draft-id"
 "检查下哪些平台已登录"
+```
+
+直接调用发布工具时的核心参数为：
+
+```json
+{
+  "platform": "zhihu",
+  "draftId": "sync_article 返回的草稿 ID",
+  "confirmed": true
+}
 ```
 
 ### 可用工具
@@ -183,6 +202,8 @@ clawhub install lljxx1/wechatsync
 | `list_platforms` | 列出所有平台及登录状态 |
 | `check_auth` | 检查指定平台登录状态 |
 | `sync_article` | 同步文章到指定平台（草稿） |
+| `list_drafts` | 查询草稿记录与发布状态 |
+| `publish_draft` | 在显式确认后自动公开发布草稿 |
 | `extract_article` | 从当前浏览器页面提取文章 |
 | `upload_image_file` | 上传本地图片到平台 |
 
@@ -230,7 +251,16 @@ pnpm build
 
 ## 更新日志
 
-### v2.0.9 (2026-03-24)
+### 自动发布集成版（2026-09-01）
+
+- 增加独立草稿发布器与发布确认界面
+- 增加 MCP `list_drafts`、`publish_draft` 自动发布工具
+- 增加发布幂等、审核中状态识别、中断恢复与审计记录
+- 接入知乎、微信公众号、搜狐号、百家号、B站专栏、今日头条自动发布流程
+- 微信公众号自动关闭群发通知并适配封面比例
+- 发布失败时保留平台草稿，便于检查和重试
+
+### 上游 v2.0.9（2026-03-24）
 
 - 🆕 文章识别和提取更准确，支持更多网页
 - 🆕 CLI/MCP 同步 HTML 文件时自动保留排版样式
@@ -260,7 +290,7 @@ pnpm build
 - 🔧 代码块提取兼容性提升
 - 🆕 新增 Markdown 压缩包下载
 
-完整日志见 [更新日志页面](https://www.wechatsync.com/changelog)
+以上 v2.0.5–v2.0.9 记录来自上游项目，完整日志见[上游更新日志](https://www.wechatsync.com/changelog)。
 
 ## 贡献代码
 
@@ -282,19 +312,19 @@ pnpm build
 
 **Q: 这是什么工具？**
 
-文章同步助手是一款开源免费的 Chrome 浏览器扩展，帮助自媒体作者、博主、内容创作者将文章一键同步到多个平台，避免重复复制粘贴，是自媒体运营必备的多平台发文工具。
+文章同步助手2.0.9 自动发布集成版是一款开源 Chrome 扩展，可将文章批量保存到多个平台草稿，并通过独立发布器或 MCP 在用户确认后继续公开发布。
 
 **Q: 支持同步微信公众号文章吗？**
 
-支持。可以直接从微信公众号编辑器提取文章，一键同步到知乎、头条、掘金等 29+ 平台。支持公众号文章同步到头条号、公众号同步到知乎、微信文章同步到掘金等各种场景。
+支持。可以从微信公众号文章或编辑器提取内容，再同步到当前公开源码注册的 20 个内置平台适配器。具体平台和自动发布状态以本文“当前支持的平台”表格为准。
 
 **Q: 支持 AI 写作工具吗？**
 
-支持 Anthropic MCP 协议，可配合 Claude Desktop、Claude Code 等 AI 工具使用，实现 AI 写作、AIGC 内容一键发布。也可以配合 ChatGPT、GPT-4 等工具生成的文章使用。
+支持。MCP 客户端可以调用 `sync_article` 创建草稿、使用 `list_drafts` 查询草稿，并在用户明确确认后调用 `publish_draft` 自动公开发布。
 
 **Q: 数据安全吗？会上传我的账号信息吗？**
 
-不会。所有操作在本地浏览器内完成，你的 Cookie、文章内容、账号信息不经过任何第三方服务器。代码完全开源，可自行审计：[查看源码](https://github.com/wechatsync/Wechatsync)
+平台登录态由本机 Chrome 管理，项目不会要求把 Cookie 或平台密码写入源码。MCP Token 用于本地桥接鉴权，应由用户自行配置并妥善保存。代码可在[本仓库](https://github.com/axbgs123/Wechatsync-auto-publish)审计。
 
 **Q: 和微小宝、新媒体管家、简媒、蚁小二有什么区别？**
 
@@ -307,9 +337,10 @@ pnpm build
 3. 打开要同步的文章页面
 4. 点击扩展图标，选择目标平台，一键同步
 
-## Author
+## 作者与维护者
 
-**fun** · 独立开发者 · [GitHub](https://github.com/lljxx1) · [主页](https://fun0.netlify.app/about/)
+- 原项目作者：**fun** · [GitHub](https://github.com/lljxx1) · [主页](https://fun0.netlify.app/about/)
+- 自动发布集成版维护者：[**axbgs123**](https://github.com/axbgs123)
 
 ## License
 
