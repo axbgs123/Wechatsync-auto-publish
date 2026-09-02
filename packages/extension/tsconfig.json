@@ -10,7 +10,8 @@
       "@wechatsync/core/*": ["../core/src/*"]
     },
     "noUnusedLocals": false,
-    "noUnusedParameters": false
+    "noUnusedParameters": false,
+    "noEmit": true
   },
   "include": ["src/**/*", "platforms/**/*"],
   "exclude": ["node_modules", "dist"]
